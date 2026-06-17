@@ -260,10 +260,6 @@ resource "iosxr_snmp_server" "snmp_server" {
     ]
     }
   ]
-  contexts = try(length(local.device_config[each.value.name].snmp_server.contexts) == 0, true) ? null : [for context in local.device_config[each.value.name].snmp_server.contexts : {
-    name = try(context.name, local.defaults.iosxr.devices.configuration.snmp_server.contexts.name, null)
-    }
-  ]
 }
 
 ##### SNMP Server VRFs #####
@@ -328,6 +324,26 @@ resource "iosxr_snmp_server_vrf" "snmp_server_vrf" {
   vrf_name = each.value.vrf_name
   hosts    = each.value.hosts
   contexts = each.value.contexts
+}
+
+##### SNMP Server Contexts #####
+
+locals {
+  snmp_server_contexts = flatten([
+    for device in local.devices : [
+      for context in try(local.device_config[device.name].snmp_server.contexts, []) : {
+        key          = format("%s/%s", device.name, try(context.name, local.defaults.iosxr.devices.configuration.snmp_server.contexts.name, null))
+        device_name  = device.name
+        context_name = try(context.name, local.defaults.iosxr.devices.configuration.snmp_server.contexts.name, null)
+      }
+    ]
+  ])
+}
+
+resource "iosxr_snmp_server_context" "snmp_server_context" {
+  for_each     = { for ctx in local.snmp_server_contexts : ctx.key => ctx }
+  device       = each.value.device_name
+  context_name = each.value.context_name
 }
 
 ##### SNMP Server MIBs #####
